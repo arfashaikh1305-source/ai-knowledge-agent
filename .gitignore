@@ -1,0 +1,62 @@
+# =========================
+# Python
+# =========================
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Virtual environments
+venv/
+.venv/
+env/
+backend/venv/
+backend/.venv/
+
+# =========================
+# Environment / secrets
+# =========================
+.env
+.env.*
+!.env.example
+
+backend/.env
+frontend/frontend/.env
+
+# =========================
+# Node / React
+# =========================
+node_modules/
+frontend/**/node_modules/
+
+dist/
+build/
+frontend/**/dist/
+frontend/**/build/
+
+# =========================
+# Frontend backups
+# =========================
+frontend/frontend/src-backup/
+frontend/frontend/src-old/
+
+# =========================
+# Uploaded/generated files
+# =========================
+uploads/
+backend/uploads/
+*.db
+*.sqlite
+*.sqlite3
+
+# =========================
+# IDE / OS
+# =========================
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# =========================
+# Logs
+# =========================
+*.log
