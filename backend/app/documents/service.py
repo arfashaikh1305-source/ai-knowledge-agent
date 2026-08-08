@@ -8,8 +8,6 @@ from app.documents.models import Document
 from app.documents.extractor import extract_text
 from app.documents.chunker import chunk_text
 
-from app.core.embedding_service import generate_embedding
-from app.core.vector_store import store_embedding
 
 UPLOAD_DIR = "uploads"
 
@@ -17,7 +15,6 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 
 def save_document(file: UploadFile, db: Session):
-
     allowed_extensions = [
         ".pdf",
         ".txt",
@@ -57,29 +54,18 @@ def save_document(file: UploadFile, db: Session):
 
     print("Document saved successfully!")
 
-    # Split into chunks
+    # Split extracted text into chunks
     chunks = chunk_text(extracted_text)
 
     print(f"Total chunks: {len(chunks)}")
 
-    # Generate embeddings and store in Qdrant
-    for index, chunk in enumerate(chunks):
-        print(f"Processing chunk {index + 1}/{len(chunks)}")
-
-        try:
-            embedding = generate_embedding(chunk)
-
-            store_embedding(
-                document_id=document.id,
-                chunk_id=index,
-                text=chunk,
-                embedding=embedding,
-            )
-
-        except Exception as e:
-            print(f"Qdrant error: {e}")
-
-    print("All embeddings stored successfully!")
+    # Temporarily skip embedding generation and Qdrant storage.
+    # We are testing the document upload + PostgreSQL pipeline first.
+    print("Document chunks created successfully!")
+    print(
+        f"Embedding generation temporarily disabled. "
+        f"Chunks: {len(chunks)}"
+    )
 
     return document
 
@@ -98,7 +84,6 @@ def get_all_documents(db: Session):
 
 
 def delete_document(document_id: int, db: Session):
-
     document = (
         db.query(Document)
         .filter(Document.id == document_id)
