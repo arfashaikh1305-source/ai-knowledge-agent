@@ -1,18 +1,28 @@
 from sentence_transformers import SentenceTransformer
 
-# Load the model once when the application starts
-model = SentenceTransformer("all-MiniLM-L6-v2")
+_model = None
+
+
+def get_model():
+    global _model
+
+    if _model is None:
+        print("Loading embedding model...")
+        _model = SentenceTransformer("all-MiniLM-L6-v2")
+
+    return _model
 
 
 def generate_embedding(text: str):
     """
-    Generate embeddings locally (offline).
-    Returns a list of floats compatible with Qdrant.
+    Generate an embedding for the given text.
+    The model is loaded only when an embedding is actually requested.
     """
+
+    model = get_model()
 
     embedding = model.encode(
         text,
-        convert_to_numpy=True,
         normalize_embeddings=True,
     )
 
