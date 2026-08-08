@@ -3,53 +3,72 @@ from qdrant_client.models import Distance, PointStruct, VectorParams
 
 from app.config.settings import settings
 
-client = QdrantClient(
-    host=settings.QDRANT_HOST,
-    port=settings.QDRANT_PORT,
-)
 
-COLLECTION_NAME = "knowledge_base"
+COLLECTION_NAME = "documents"
+
+client = QdrantClient(
+    url=settings.QDRANT_URL,
+    api_key=settings.QDRANT_API_KEY,
+)
 
 
 def create_collection():
-    collections = client.get_collections().collections
+    """
+    Create the Qdrant collection if it does not already exist.
+    """
 
-    names = [collection.name for collection in collections]
+    try:
+        collections = client.get_collections()
 
-    if COLLECTION_NAME not in names:
-        client.create_collection(
-            collection_name=COLLECTION_NAME,
-            vectors_config=VectorParams(
-                size=384,  # all-MiniLM-L6-v2 embedding size
-                distance=Distance.COSINE,
-            ),
-        )
+        collection_names = [
+            collection.name
+            for collection in collections.collections
+        ]
 
-        print("Qdrant collection created successfully!")
+        if COLLECTION_NAME not in collection_names:
+            client.create_collection(
+                collection_name=COLLECTION_NAME,
+                vectors_config=VectorParams(
+                    size=384,
+                    distance=Distance.COSINE,
+                ),
+            )
 
-    else:
-        print("Qdrant collection already exists.")
+            print("Qdrant collection created successfully!")
+
+        else:
+            print("Qdrant collection already exists.")
+
+    except Exception as e:
+        print("Qdrant connection error:", e)
+        raise
 
 
 def store_embedding(
-    document_id: int,
-    chunk_id: int,
-    text: str,
-    embedding: list,
+    embedding,
+    text,
+    document_id=None,
+    chunk_id=None,
 ):
-    client.upsert(
-        collection_name=COLLECTION_NAME,
-        points=[
-            PointStruct(
-                id=document_id * 10000 + chunk_id,
-                vector=embedding,
-                payload={
-                    "document_id": document_id,
-                    "chunk_id": chunk_id,
-                    "text": text,
-                },
-            )
-        ],
+    """
+    Store a single document chunk embedding in Qdrant.
+    """
+
+    point_id = int(chunk_id) if chunk_id is not None else 0
+
+    point = PointStruct(
+        id=point_id,
+        vector=embedding,
+        payload={
+            "text": text,
+            "document_id": document_id,
+            "chunk_id": chunk_id,
+        },
     )
 
-    print(f"Stored chunk {chunk_id}")
+    client.upsert(
+        collection_name=COLLECTION_NAME,
+        points=[point],
+    )
+
+    return True
