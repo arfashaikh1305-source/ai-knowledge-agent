@@ -9,7 +9,10 @@ from app.documents.extractor import extract_text
 from app.documents.chunker import chunk_text
 
 from app.core.embedding_service import generate_embedding
-from app.core.vector_store import store_embedding
+from app.core.vector_store import (
+    store_embedding,
+    delete_document_embeddings,
+)
 
 
 UPLOAD_DIR = "uploads"
@@ -17,7 +20,11 @@ UPLOAD_DIR = "uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 
-def save_document(file: UploadFile, db: Session):
+def save_document(
+    file: UploadFile,
+    db: Session,
+    user_id: int,
+):
     allowed_extensions = [
         ".pdf",
         ".txt",
@@ -31,20 +38,28 @@ def save_document(file: UploadFile, db: Session):
 
     if extension not in allowed_extensions:
         raise ValueError(
-            "Unsupported file type. Allowed: PDF, TXT, DOCX, MD, PPTX, XLSX."
+            "Unsupported file type. Allowed: "
+            "PDF, TXT, DOCX, MD, PPTX, XLSX."
         )
 
     # Save uploaded file
-    file_path = os.path.join(UPLOAD_DIR, file.filename)
+    file_path = os.path.join(
+        UPLOAD_DIR,
+        file.filename,
+    )
 
     with open(file_path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
+        shutil.copyfileobj(
+            file.file,
+            buffer,
+        )
 
     # Extract text
     extracted_text = extract_text(file_path)
 
     # Save document in PostgreSQL
     document = Document(
+        user_id=user_id,
         filename=file.filename,
         file_type=file.content_type,
         file_path=file_path,
@@ -65,7 +80,8 @@ def save_document(file: UploadFile, db: Session):
     # Generate Gemini embeddings and store in Qdrant
     for index, chunk in enumerate(chunks):
         print(
-            f"Processing chunk {index + 1}/{len(chunks)}"
+            f"Processing chunk "
+            f"{index + 1}/{len(chunks)}"
         )
 
         try:
@@ -76,6 +92,7 @@ def save_document(file: UploadFile, db: Session):
 
             store_embedding(
                 document_id=document.id,
+                user_id=user_id,
                 chunk_id=index,
                 text=chunk,
                 embedding=embedding,
@@ -93,8 +110,15 @@ def save_document(file: UploadFile, db: Session):
     return document
 
 
-def get_all_documents(db: Session):
-    documents = db.query(Document).all()
+def get_all_documents(
+    db: Session,
+    user_id: int,
+):
+    documents = (
+        db.query(Document)
+        .filter(Document.user_id == user_id)
+        .all()
+    )
 
     return [
         {
@@ -106,10 +130,17 @@ def get_all_documents(db: Session):
     ]
 
 
-def delete_document(document_id: int, db: Session):
+def delete_document(
+    document_id: int,
+    db: Session,
+    user_id: int,
+):
     document = (
         db.query(Document)
-        .filter(Document.id == document_id)
+        .filter(
+            Document.id == document_id,
+            Document.user_id == user_id,
+        )
         .first()
     )
 
@@ -121,6 +152,13 @@ def delete_document(document_id: int, db: Session):
     if os.path.exists(document.file_path):
         os.remove(document.file_path)
 
+    # Delete the document's embeddings from Qdrant
+    delete_document_embeddings(
+        document_id=document.id,
+        user_id=user_id,
+    )
+
+    # Delete the document from PostgreSQL
     db.delete(document)
     db.commit()
 

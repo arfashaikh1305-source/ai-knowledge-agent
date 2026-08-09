@@ -9,6 +9,8 @@ from app.documents.service import (
     get_all_documents,
     delete_document,
 )
+from app.auth.security import get_current_user_id
+
 
 router = APIRouter(
     prefix="/documents",
@@ -20,36 +22,62 @@ router = APIRouter(
 def upload_document(
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
 ):
-    document = save_document(file, db)
+    try:
+        document = save_document(
+            file,
+            db,
+            user_id,
+        )
 
-    return {
-        "message": "Document uploaded successfully",
-        "id": document.id,
-        "filename": document.filename,
-    }
+        return {
+            "message": "Document uploaded successfully",
+            "id": document.id,
+            "filename": document.filename,
+        }
+
+    except ValueError as e:
+        raise HTTPException(
+            status_code=400,
+            detail=str(e),
+        )
 
 
 @router.get("/")
 def list_documents(
     db: Session = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
 ):
-    return get_all_documents(db)
+    return get_all_documents(
+        db,
+        user_id,
+    )
 
 
 @router.delete("/{document_id}")
 def remove_document(
     document_id: int,
     db: Session = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
 ):
-    return delete_document(document_id, db)
+    return delete_document(
+        document_id,
+        db,
+        user_id,
+    )
 
 
 @router.get("/stats")
 def document_stats(
     db: Session = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
 ):
-    total_documents = db.query(Document).count()
+    total_documents = (
+        db.query(Document)
+        .filter(Document.user_id == user_id)
+        .count()
+    )
 
     return {
         "total_documents": total_documents
@@ -60,10 +88,14 @@ def document_stats(
 def download_document(
     document_id: int,
     db: Session = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
 ):
     document = (
         db.query(Document)
-        .filter(Document.id == document_id)
+        .filter(
+            Document.id == document_id,
+            Document.user_id == user_id,
+        )
         .first()
     )
 

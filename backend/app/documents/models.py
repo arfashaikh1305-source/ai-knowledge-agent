@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, Text
+from sqlalchemy import Column, Integer, String, DateTime, Text, ForeignKey
 from sqlalchemy.sql import func
 
 from app.database.base import Base
@@ -9,13 +9,32 @@ class Document(Base):
 
     id = Column(Integer, primary_key=True, index=True)
 
-    filename = Column(String(255), nullable=False)
+    user_id = Column(
+        Integer,
+        ForeignKey("users.id"),
+        nullable=True,
+        index=True,
+    )
 
-    file_type = Column(String(255), nullable=False)
+    filename = Column(
+        String(255),
+        nullable=False,
+    )
 
-    file_path = Column(String(500), nullable=False)
+    file_type = Column(
+        String(255),
+        nullable=False,
+    )
 
-    content = Column(Text, nullable=True)
+    file_path = Column(
+        String(500),
+        nullable=False,
+    )
+
+    content = Column(
+        Text,
+        nullable=True,
+    )
 
     uploaded_at = Column(
         DateTime(timezone=True),

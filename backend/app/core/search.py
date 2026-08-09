@@ -1,11 +1,17 @@
+from qdrant_client.models import FieldCondition, Filter, MatchValue
+
 from app.core.vector_store import client, COLLECTION_NAME
 from app.core.embedding_service import generate_embedding
 
 
-def search_documents(query: str, limit: int = 5):
+def search_documents(
+    query: str,
+    user_id: int,
+    limit: int = 5,
+):
     """
     Generate an embedding for the user's question
-    and search the Qdrant document collection.
+    and search only the logged-in user's document chunks.
     """
 
     embedding = generate_embedding(
@@ -14,9 +20,19 @@ def search_documents(query: str, limit: int = 5):
     )
 
     try:
+        user_filter = Filter(
+            must=[
+                FieldCondition(
+                    key="user_id",
+                    match=MatchValue(value=user_id),
+                )
+            ]
+        )
+
         results = client.query_points(
             collection_name=COLLECTION_NAME,
             query=embedding,
+            query_filter=user_filter,
             limit=limit,
         )
 

@@ -4,26 +4,41 @@ import traceback
 from app.config.settings import settings
 from app.core.search import search_documents
 
-client = genai.Client(api_key=settings.GEMINI_API_KEY)
+
+client = genai.Client(
+    api_key=settings.GEMINI_API_KEY
+)
 
 
-def ask_ai(question: str):
+def ask_ai(
+    question: str,
+    user_id: int,
+):
     try:
         print(f"\nQuestion: {question}")
 
-        contexts = search_documents(question)
+        contexts = search_documents(
+            question,
+            user_id,
+        )
 
-        print(f"Retrieved {len(contexts)} document chunks.")
+        print(
+            f"Retrieved {len(contexts)} document chunks."
+        )
 
         if not contexts:
-            return "I couldn't find any relevant information in the uploaded documents."
+            return (
+                "I couldn't find any relevant information "
+                "in your uploaded documents."
+            )
 
         context = "\n\n".join(contexts)
 
         prompt = f"""
 You are an AI Knowledge Assistant.
 
-Answer ONLY using the uploaded documents.
+Answer ONLY using the uploaded documents belonging
+to the current user.
 
 Context:
 {context}
@@ -47,10 +62,12 @@ Answer:
             return response.text
 
         print(response)
+
         return "No response generated."
 
     except Exception as e:
         print("\n========== FULL ERROR ==========")
         traceback.print_exc()
         print("================================\n")
+
         return str(e)

@@ -1,11 +1,19 @@
 from qdrant_client import QdrantClient
-from qdrant_client.models import Distance, PointStruct, VectorParams
+from qdrant_client.models import (
+    Distance,
+    FieldCondition,
+    Filter,
+    MatchValue,
+    PointStruct,
+    VectorParams,
+)
 
 from app.config.settings import settings
 
 
 COLLECTION_NAME = "documents"
 VECTOR_SIZE = 768
+
 
 client = QdrantClient(
     url=settings.QDRANT_URL,
@@ -49,30 +57,28 @@ def store_embedding(
     embedding,
     text,
     document_id=None,
+    user_id=None,
     chunk_id=None,
 ):
     """
     Store a single document chunk embedding in Qdrant.
-
-    A combined document/chunk ID is used so that chunk 0
-    from one document cannot overwrite chunk 0 from another.
     """
 
     if document_id is None:
         raise ValueError("document_id is required.")
 
+    if user_id is None:
+        raise ValueError("user_id is required.")
+
     if chunk_id is None:
         raise ValueError("chunk_id is required.")
 
-    expected_size = VECTOR_SIZE
-
-    if len(embedding) != expected_size:
+    if len(embedding) != VECTOR_SIZE:
         raise ValueError(
             f"Invalid embedding dimension. "
-            f"Expected {expected_size}, got {len(embedding)}."
+            f"Expected {VECTOR_SIZE}, got {len(embedding)}."
         )
 
-    # Create a unique integer ID for each document chunk.
     point_id = (int(document_id) * 1_000_000) + int(chunk_id)
 
     point = PointStruct(
@@ -81,6 +87,7 @@ def store_embedding(
         payload={
             "text": text,
             "document_id": document_id,
+            "user_id": user_id,
             "chunk_id": chunk_id,
         },
     )
@@ -88,6 +95,34 @@ def store_embedding(
     client.upsert(
         collection_name=COLLECTION_NAME,
         points=[point],
+    )
+
+    return True
+
+
+def delete_document_embeddings(
+    document_id: int,
+    user_id: int,
+):
+    """
+    Delete all Qdrant chunks belonging to a specific
+    document and user.
+    """
+
+    client.delete(
+        collection_name=COLLECTION_NAME,
+        points_selector=Filter(
+            must=[
+                FieldCondition(
+                    key="document_id",
+                    match=MatchValue(value=document_id),
+                ),
+                FieldCondition(
+                    key="user_id",
+                    match=MatchValue(value=user_id),
+                ),
+            ]
+        ),
     )
 
     return True
