@@ -1,47 +1,54 @@
 import api from "./api";
 import { getToken } from "./auth";
 
-const authHeaders = () => ({
-  Authorization: `Bearer ${getToken()}`,
-});
+export const getDocuments = async () => {
+  const token = getToken();
 
-export const uploadDocument = async (file) => {
-  const formData = new FormData();
-
-  formData.append("file", file);
-
-  const response = await api.post(
-    "/documents/upload",
-    formData,
-    {
-      headers: {
-        ...authHeaders(),
-        "Content-Type": "multipart/form-data",
-      },
-    }
-  );
+  const response = await api.get("/documents/", {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
 
   return response.data;
 };
 
-export const getDocuments = async () => {
-  const response = await api.get(
-    "/documents/",
-    {
-      headers: authHeaders(),
-    }
-  );
+export const uploadDocument = async (file) => {
+  const token = getToken();
+
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const response = await api.post("/documents/upload", formData, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
 
   return response.data;
 };
 
 export const deleteDocument = async (documentId) => {
-  const response = await api.delete(
-    `/documents/${documentId}`,
-    {
-      headers: authHeaders(),
-    }
-  );
+  const token = getToken();
+
+  const response = await api.delete(`/documents/${documentId}`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  return response.data;
+};
+
+export const downloadDocument = async (documentId) => {
+  const token = getToken();
+
+  const response = await api.get(`/documents/${documentId}/download`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    responseType: "blob",
+  });
 
   return response.data;
 };
