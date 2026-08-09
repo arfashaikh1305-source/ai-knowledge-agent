@@ -19,6 +19,7 @@ from app.chat.router import router as chat_router
 # Import Qdrant collection creator
 from app.core.vector_store import create_collection
 
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
@@ -26,24 +27,31 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 
+
 app = FastAPI(title=settings.APP_NAME)
 
+
+# CORS configuration
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "http://localhost:5173",
-        "http://localhost:5174",
-    ],
+    "http://localhost:5173",
+    "http://localhost:5174",
+    "https://your-actual-frontend.onrender.com",
+],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+
 # Create PostgreSQL tables
 Base.metadata.create_all(bind=engine)
 
+
 # Create Qdrant collection
 create_collection()
+
 
 # Register routers
 app.include_router(auth_router)
