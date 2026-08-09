@@ -3,7 +3,9 @@ from datetime import datetime, timedelta
 import bcrypt
 from jose import jwt
 
-SECRET_KEY = "my_super_secret_key"
+from app.config.settings import settings
+
+
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
 
@@ -13,6 +15,7 @@ def hash_password(password: str) -> str:
         password.encode("utf-8"),
         bcrypt.gensalt(),
     )
+
     return hashed.decode("utf-8")
 
 
@@ -34,6 +37,6 @@ def create_access_token(data: dict):
 
     return jwt.encode(
         to_encode,
-        SECRET_KEY,
+        settings.SECRET_KEY,
         algorithm=ALGORITHM,
     )
