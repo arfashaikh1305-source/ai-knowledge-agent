@@ -1,31 +1,52 @@
-_model = None
+from google import genai
+from google.genai import types
+
+from app.config.settings import settings
 
 
-def get_model():
-    global _model
+EMBEDDING_MODEL = "gemini-embedding-2"
+EMBEDDING_DIMENSION = 768
 
-    if _model is None:
-        print("Loading embedding model...")
-
-        from sentence_transformers import SentenceTransformer
-
-        _model = SentenceTransformer("all-MiniLM-L6-v2")
-
-    return _model
+client = genai.Client(
+    api_key=settings.GEMINI_API_KEY
+)
 
 
-def generate_embedding(text: str):
+def generate_embedding(
+    text: str,
+    task_type: str = "RETRIEVAL_DOCUMENT",
+):
     """
-    Generate an embedding for the given text.
-    The embedding model and sentence-transformers package
-    are loaded only when an embedding is actually requested.
+    Generate a Gemini embedding.
+
+    RETRIEVAL_DOCUMENT is used when embedding document chunks.
+    RETRIEVAL_QUERY is used when embedding user questions.
     """
 
-    model = get_model()
+    if not text or not text.strip():
+        raise ValueError("Cannot generate an embedding for empty text.")
 
-    embedding = model.encode(
-        text,
-        normalize_embeddings=True,
+    response = client.models.embed_content(
+        model=EMBEDDING_MODEL,
+        contents=text,
+        config=types.EmbedContentConfig(
+            task_type=task_type,
+            output_dimensionality=EMBEDDING_DIMENSION,
+        ),
     )
 
-    return embedding.tolist()
+    if not response.embeddings:
+        raise RuntimeError("Gemini returned no embedding.")
+
+    embedding = response.embeddings[0].values
+
+    if not embedding:
+        raise RuntimeError("Gemini returned an empty embedding.")
+
+    if len(embedding) != EMBEDDING_DIMENSION:
+        raise RuntimeError(
+            f"Expected {EMBEDDING_DIMENSION} dimensions, "
+            f"got {len(embedding)}."
+        )
+
+    return list(embedding)

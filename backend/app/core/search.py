@@ -3,11 +3,17 @@ from app.core.embedding_service import generate_embedding
 
 
 def search_documents(query: str, limit: int = 5):
-    # Generate embedding for the user's question
-    embedding = generate_embedding(query)
+    """
+    Generate an embedding for the user's question
+    and search the Qdrant document collection.
+    """
+
+    embedding = generate_embedding(
+        query,
+        task_type="RETRIEVAL_QUERY",
+    )
 
     try:
-        # Search Qdrant
         results = client.query_points(
             collection_name=COLLECTION_NAME,
             query=embedding,
@@ -21,10 +27,10 @@ def search_documents(query: str, limit: int = 5):
 
         contexts = []
 
-        # Handle returned points safely
         if hasattr(results, "points"):
             for point in results.points:
                 payload = getattr(point, "payload", {})
+
                 if payload and "text" in payload:
                     contexts.append(payload["text"])
 

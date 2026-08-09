@@ -5,6 +5,7 @@ from app.config.settings import settings
 
 
 COLLECTION_NAME = "documents"
+VECTOR_SIZE = 768
 
 client = QdrantClient(
     url=settings.QDRANT_URL,
@@ -29,7 +30,7 @@ def create_collection():
             client.create_collection(
                 collection_name=COLLECTION_NAME,
                 vectors_config=VectorParams(
-                    size=384,
+                    size=VECTOR_SIZE,
                     distance=Distance.COSINE,
                 ),
             )
@@ -52,9 +53,27 @@ def store_embedding(
 ):
     """
     Store a single document chunk embedding in Qdrant.
+
+    A combined document/chunk ID is used so that chunk 0
+    from one document cannot overwrite chunk 0 from another.
     """
 
-    point_id = int(chunk_id) if chunk_id is not None else 0
+    if document_id is None:
+        raise ValueError("document_id is required.")
+
+    if chunk_id is None:
+        raise ValueError("chunk_id is required.")
+
+    expected_size = VECTOR_SIZE
+
+    if len(embedding) != expected_size:
+        raise ValueError(
+            f"Invalid embedding dimension. "
+            f"Expected {expected_size}, got {len(embedding)}."
+        )
+
+    # Create a unique integer ID for each document chunk.
+    point_id = (int(document_id) * 1_000_000) + int(chunk_id)
 
     point = PointStruct(
         id=point_id,

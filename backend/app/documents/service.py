@@ -8,6 +8,9 @@ from app.documents.models import Document
 from app.documents.extractor import extract_text
 from app.documents.chunker import chunk_text
 
+from app.core.embedding_service import generate_embedding
+from app.core.vector_store import store_embedding
+
 
 UPLOAD_DIR = "uploads"
 
@@ -59,13 +62,33 @@ def save_document(file: UploadFile, db: Session):
 
     print(f"Total chunks: {len(chunks)}")
 
-    # Temporarily skip embedding generation and Qdrant storage.
-    # We are testing the document upload + PostgreSQL pipeline first.
-    print("Document chunks created successfully!")
-    print(
-        f"Embedding generation temporarily disabled. "
-        f"Chunks: {len(chunks)}"
-    )
+    # Generate Gemini embeddings and store in Qdrant
+    for index, chunk in enumerate(chunks):
+        print(
+            f"Processing chunk {index + 1}/{len(chunks)}"
+        )
+
+        try:
+            embedding = generate_embedding(
+                chunk,
+                task_type="RETRIEVAL_DOCUMENT",
+            )
+
+            store_embedding(
+                document_id=document.id,
+                chunk_id=index,
+                text=chunk,
+                embedding=embedding,
+            )
+
+        except Exception as e:
+            print(
+                f"Qdrant/embedding error for chunk "
+                f"{index}: {e}"
+            )
+            raise
+
+    print("All embeddings stored successfully!")
 
     return document
 
