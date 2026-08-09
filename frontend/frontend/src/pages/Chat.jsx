@@ -1,299 +1,873 @@
-import { useState, useRef, useEffect } from "react";
+import { useState } from "react";
+import { Link } from "react-router-dom";
+
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  LineChart,
+  Line,
+  PieChart,
+  Pie,
+  Cell,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+} from "recharts";
+
 import api from "../services/api";
 import { getToken } from "../services/auth";
-import Navbar from "../components/Navbar";
-import Sidebar from "../components/Sidebar";
-
 
 function Chat() {
   const [question, setQuestion] = useState("");
-  const [messages, setMessages] = useState([]);
+  const [answer, setAnswer] = useState("");
+  const [chart, setChart] = useState(null);
   const [loading, setLoading] = useState(false);
-  const bottomRef = useRef(null);
+  const [error, setError] = useState("");
 
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, loading]);
+  const askQuestion = async () => {
+    if (!question.trim()) {
+      setError("Please enter a question.");
+      return;
+    }
 
-
-  const sendMessage = async () => {
-    if (!question.trim() || loading) return;
-
-    const userMessage = {
-      sender: "user",
-      text: question.trim(),
-    };
-
-    setMessages((prev) => [...prev, userMessage]);
-    setQuestion("");
     setLoading(true);
+    setError("");
+    setAnswer("");
+    setChart(null);
 
     try {
+      const token = getToken();
+
       const response = await api.post(
         "/chat/",
         {
-          question: userMessage.text,
+          question: question.trim(),
         },
         {
           headers: {
-            Authorization: `Bearer ${getToken()}`,
+            Authorization: `Bearer ${token}`,
           },
         }
       );
 
-      setMessages((prev) => [
-        ...prev,
-        {
-          sender: "ai",
-          text: response.data.answer,
-        },
-      ]);
-    } catch (error) {
-      console.error(error);
+      setAnswer(response.data.answer || "");
+      setChart(response.data.chart || null);
+    } catch (err) {
+      console.error("Chat error:", err);
 
-      setMessages((prev) => [
-        ...prev,
-        {
-          sender: "ai",
-          text: "Unable to get AI response.",
-        },
-      ]);
+      if (err.response?.status === 401) {
+        setError("Your login session has expired. Please login again.");
+      } else if (err.response?.data?.detail) {
+        setError(err.response.data.detail);
+      } else {
+        setError("Unable to connect to the AI server.");
+      }
     } finally {
       setLoading(false);
     }
   };
 
+  const chartData =
+    chart?.labels?.map((label, index) => ({
+      name: label,
+      value: Number(chart.values[index]),
+    })) || [];
 
-  const copyMessage = async (text) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      alert("Copied to clipboard!");
-    } catch (error) {
-      console.error(error);
+  const renderChart = () => {
+    if (!chart || chartData.length === 0) {
+      return null;
     }
-  };
 
-
-  const clearChat = () => setMessages([]);
-
-
-  return (
-    <div className="min-h-screen bg-slate-50 text-slate-900">
-      <Navbar />
-
-      <div className="mx-auto flex max-w-[1600px] flex-col md:flex-row">
-        <Sidebar />
-
-        <main className="min-w-0 flex-1 p-4 sm:p-6 lg:p-10">
-
-          <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+    if (chart.type === "line") {
+      return (
+        <div style={styles.chartCard}>
+          <div style={styles.chartHeader}>
             <div>
-              <p className="text-xs font-bold uppercase tracking-[0.18em] text-indigo-600">
-                AI assistant
-              </p>
-
-              <h1 className="mt-1 text-3xl font-bold tracking-tight sm:text-4xl">
-                Ask your knowledge base
-              </h1>
-
-              <p className="mt-2 text-sm text-slate-500">
-                Answers are generated from your uploaded documents.
-              </p>
+              <span style={styles.chartBadge}>ANALYTICS</span>
+              <h3 style={styles.chartTitle}>{chart.title}</h3>
             </div>
-
-            <button
-              onClick={clearChat}
-              disabled={!messages.length}
-              className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              Clear chat
-            </button>
           </div>
 
+          <div style={styles.chartArea}>
+            <ResponsiveContainer width="100%" height={420}>
+              <LineChart
+                data={chartData}
+                margin={{
+                  top: 20,
+                  right: 25,
+                  left: 0,
+                  bottom: 80,
+                }}
+              >
+                <CartesianGrid
+                  strokeDasharray="3 3"
+                  stroke="#e5e7eb"
+                />
 
-          <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+                <XAxis
+                  dataKey="name"
+                  angle={-30}
+                  textAnchor="end"
+                  interval={0}
+                  height={90}
+                  tick={{ fill: "#64748b", fontSize: 12 }}
+                />
 
-            <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4 sm:px-6">
-              <div className="flex items-center gap-3">
+                <YAxis
+                  tick={{ fill: "#64748b", fontSize: 12 }}
+                />
 
-                <span className="grid h-10 w-10 place-items-center rounded-xl bg-slate-950 text-white">
-                  ✦
-                </span>
+                <Tooltip />
 
-                <div>
-                  <p className="text-sm font-bold">
-                    Knowledge Assistant
-                  </p>
+                <Legend />
 
-                  <p className="text-xs text-slate-500">
-                    Ready to answer
-                  </p>
-                </div>
+                <Line
+                  type="monotone"
+                  dataKey="value"
+                  name="Value"
+                  stroke="#6366f1"
+                  strokeWidth={4}
+                  dot={{
+                    r: 5,
+                    fill: "#6366f1",
+                  }}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      );
+    }
 
+    if (chart.type === "pie") {
+      const pieColors = [
+        "#6366f1",
+        "#8b5cf6",
+        "#ec4899",
+        "#f97316",
+        "#06b6d4",
+        "#10b981",
+        "#eab308",
+        "#ef4444",
+      ];
+
+      return (
+        <div style={styles.chartCard}>
+          <div style={styles.chartHeader}>
+            <div>
+              <span style={styles.chartBadge}>DISTRIBUTION</span>
+              <h3 style={styles.chartTitle}>{chart.title}</h3>
+            </div>
+          </div>
+
+          <div style={styles.chartArea}>
+            <ResponsiveContainer width="100%" height={420}>
+              <PieChart>
+                <Pie
+                  data={chartData}
+                  dataKey="value"
+                  nameKey="name"
+                  cx="50%"
+                  cy="48%"
+                  outerRadius={145}
+                  label
+                >
+                  {chartData.map((entry, index) => (
+                    <Cell
+                      key={`cell-${index}`}
+                      fill={pieColors[index % pieColors.length]}
+                    />
+                  ))}
+                </Pie>
+
+                <Tooltip />
+                <Legend />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div style={styles.chartCard}>
+        <div style={styles.chartHeader}>
+          <div>
+            <span style={styles.chartBadge}>ANALYTICS</span>
+            <h3 style={styles.chartTitle}>{chart.title}</h3>
+          </div>
+
+          <span style={styles.chartIcon}>📊</span>
+        </div>
+
+        <div style={styles.chartArea}>
+          <ResponsiveContainer width="100%" height={430}>
+            <BarChart
+              data={chartData}
+              margin={{
+                top: 20,
+                right: 25,
+                left: 0,
+                bottom: 100,
+              }}
+            >
+              <CartesianGrid
+                strokeDasharray="3 3"
+                stroke="#e5e7eb"
+              />
+
+              <XAxis
+                dataKey="name"
+                angle={-35}
+                textAnchor="end"
+                interval={0}
+                height={120}
+                tick={{
+                  fill: "#64748b",
+                  fontSize: 12,
+                }}
+              />
+
+              <YAxis
+                tick={{
+                  fill: "#64748b",
+                  fontSize: 12,
+                }}
+              />
+
+              <Tooltip />
+
+              <Legend />
+
+              <Bar
+                dataKey="value"
+                name="Issues"
+                fill="#6366f1"
+                radius={[8, 8, 0, 0]}
+              />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div style={styles.app}>
+      {/* Sidebar */}
+      <aside style={styles.sidebar}>
+        <div style={styles.logoArea}>
+          <div style={styles.logoIcon}>✦</div>
+
+          <div>
+            <div style={styles.logoTitle}>
+              AI Knowledge
+            </div>
+
+            <div style={styles.logoSubtitle}>
+              AGENT
+            </div>
+          </div>
+        </div>
+
+        <div style={styles.sidebarLabel}>
+          WORKSPACE
+        </div>
+
+        <nav style={styles.nav}>
+          <Link to="/dashboard" style={styles.navItem}>
+            <span>⌂</span>
+            Dashboard
+          </Link>
+
+          <Link to="/documents" style={styles.navItem}>
+            <span>▣</span>
+            Documents
+          </Link>
+
+          <Link
+            to="/chat"
+            style={{
+              ...styles.navItem,
+              ...styles.activeNav,
+            }}
+          >
+            <span>✦</span>
+            AI Chat
+            <span style={styles.activeDot}></span>
+          </Link>
+        </nav>
+
+        <div style={styles.sidebarBottom}>
+          <div style={styles.knowledgeCard}>
+            <div style={styles.knowledgeIcon}>⚡</div>
+
+            <div>
+              <div style={styles.knowledgeTitle}>
+                Knowledge AI
               </div>
 
-              <span className="flex items-center gap-2 text-xs font-semibold text-emerald-600">
-                <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                Online
+              <div style={styles.knowledgeText}>
+                Ask questions from your documents.
+              </div>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      {/* Main */}
+      <main style={styles.main}>
+        {/* Top bar */}
+        <header style={styles.topbar}>
+          <div>
+            <div style={styles.breadcrumb}>
+              Workspace / AI Chat
+            </div>
+
+            <h1 style={styles.pageTitle}>
+              AI Knowledge Assistant
+            </h1>
+          </div>
+
+          <div style={styles.status}>
+            <span style={styles.statusDot}></span>
+            AI Online
+          </div>
+        </header>
+
+        {/* Chat content */}
+        <section style={styles.content}>
+          <div style={styles.hero}>
+            <div style={styles.heroIcon}>✦</div>
+
+            <div>
+              <h2 style={styles.heroTitle}>
+                Ask your documents anything
+              </h2>
+
+              <p style={styles.heroText}>
+                Get intelligent answers from your uploaded
+                knowledge base with AI-powered search.
+              </p>
+            </div>
+          </div>
+
+          {/* Question box */}
+          <div style={styles.inputCard}>
+            <div style={styles.inputHeader}>
+              <span style={styles.inputLabel}>
+                YOUR QUESTION
+              </span>
+
+              <span style={styles.shortcut}>
+                Enter to send
               </span>
             </div>
 
+            <textarea
+              value={question}
+              onChange={(e) => setQuestion(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  askQuestion();
+                }
+              }}
+              placeholder="Ask something about your uploaded documents..."
+              rows={4}
+              style={styles.textarea}
+            />
 
-            <div className="h-[55vh] min-h-[420px] overflow-y-auto bg-slate-50/70 p-4 sm:p-6">
+            <div style={styles.inputFooter}>
+              <span style={styles.hint}>
+                Shift + Enter for a new line
+              </span>
 
-              {messages.length === 0 && (
-                <div className="mx-auto flex h-full max-w-2xl flex-col items-center justify-center text-center">
-
-                  <div className="grid h-16 w-16 place-items-center rounded-2xl bg-slate-950 text-2xl text-white shadow-xl shadow-slate-900/10">
-                    ✦
-                  </div>
-
-                  <h2 className="mt-5 text-xl font-bold">
-                    What would you like to know?
-                  </h2>
-
-                  <p className="mt-2 max-w-md text-sm leading-6 text-slate-500">
-                    Ask a question about any information contained in your
-                    uploaded documents.
-                  </p>
-
-                  <div className="mt-6 flex flex-wrap justify-center gap-2">
-                    {[
-                      "Summarize this document",
-                      "What are the key points?",
-                      "Find important details",
-                    ].map((item) => (
-                      <button
-                        key={item}
-                        onClick={() => setQuestion(item)}
-                        className="rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-600 transition hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700"
-                      >
-                        {item}
-                      </button>
-                    ))}
-                  </div>
-
-                </div>
-              )}
-
-
-              <div className="mx-auto max-w-4xl space-y-5">
-
-                {messages.map((msg, index) => (
-                  <div
-                    key={index}
-                    className={`flex gap-3 ${
-                      msg.sender === "user"
-                        ? "justify-end"
-                        : "justify-start"
-                    }`}
-                  >
-
-                    {msg.sender === "ai" && (
-                      <span className="mt-1 grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-slate-950 text-sm text-white">
-                        ✦
-                      </span>
-                    )}
-
-                    <div
-                      className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-6 shadow-sm sm:max-w-2xl ${
-                        msg.sender === "user"
-                          ? "rounded-br-md bg-slate-950 text-white"
-                          : "rounded-bl-md border border-slate-200 bg-white text-slate-700"
-                      }`}
-                    >
-                      <p className="whitespace-pre-wrap">
-                        {msg.text}
-                      </p>
-
-                      {msg.sender === "ai" && (
-                        <button
-                          onClick={() => copyMessage(msg.text)}
-                          className="mt-3 text-xs font-bold text-indigo-600 hover:text-indigo-800"
-                        >
-                          Copy response
-                        </button>
-                      )}
-                    </div>
-
-                    {msg.sender === "user" && (
-                      <span className="mt-1 grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-indigo-100 text-sm font-bold text-indigo-700">
-                        You
-                      </span>
-                    )}
-
-                  </div>
-                ))}
-
-
-                {loading && (
-                  <div className="flex gap-3">
-
-                    <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-slate-950 text-sm text-white">
-                      ✦
-                    </span>
-
-                    <div className="rounded-2xl rounded-bl-md border border-slate-200 bg-white px-4 py-3 text-sm text-slate-500 shadow-sm">
-
-                      <span className="inline-flex items-center gap-1">
-                        Thinking
-                        <span className="animate-pulse">
-                          ...
-                        </span>
-                      </span>
-
-                    </div>
-
-                  </div>
+              <button
+                onClick={askQuestion}
+                disabled={loading}
+                style={{
+                  ...styles.askButton,
+                  opacity: loading ? 0.7 : 1,
+                }}
+              >
+                {loading ? (
+                  <>
+                    <span style={styles.spinner}></span>
+                    Thinking...
+                  </>
+                ) : (
+                  <>
+                    Ask AI
+                    <span style={styles.sendIcon}>➜</span>
+                  </>
                 )}
-
-                <div ref={bottomRef} />
-
-              </div>
+              </button>
             </div>
-
-
-            <div className="border-t border-slate-200 bg-white p-4 sm:p-5">
-
-              <div className="flex items-end gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-2 shadow-inner focus-within:border-indigo-300 focus-within:ring-4 focus-within:ring-indigo-500/10">
-
-                <textarea
-                  rows="1"
-                  value={question}
-                  onChange={(e) => setQuestion(e.target.value)}
-                  placeholder="Ask something about your uploaded documents..."
-                  className="max-h-32 min-h-11 flex-1 resize-none bg-transparent px-3 py-2.5 text-sm outline-none placeholder:text-slate-400"
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) {
-                      e.preventDefault();
-                      sendMessage();
-                    }
-                  }}
-                />
-
-                <button
-                  onClick={sendMessage}
-                  disabled={!question.trim() || loading}
-                  className="rounded-xl bg-slate-950 px-5 py-3 text-sm font-bold text-white transition hover:bg-indigo-600 disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  Send
-                </button>
-
-              </div>
-
-              <p className="mt-2 text-center text-[11px] text-slate-400">
-                Press Enter to send · Shift + Enter for a new line
-              </p>
-
-            </div>
-
           </div>
 
-        </main>
-      </div>
+          {/* Error */}
+          {error && (
+            <div style={styles.error}>
+              <span style={styles.errorIcon}>!</span>
+              <span>{error}</span>
+            </div>
+          )}
+
+          {/* AI Answer */}
+          {answer && (
+            <div style={styles.answerCard}>
+              <div style={styles.aiHeader}>
+                <div style={styles.aiAvatar}>✦</div>
+
+                <div>
+                  <div style={styles.aiName}>
+                    AI Knowledge Assistant
+                  </div>
+
+                  <div style={styles.aiStatus}>
+                    Based on your uploaded documents
+                  </div>
+                </div>
+              </div>
+
+              <div style={styles.answerText}>
+                {answer}
+              </div>
+            </div>
+          )}
+
+          {/* Chart */}
+          {renderChart()}
+        </section>
+      </main>
     </div>
   );
 }
 
+const styles = {
+  app: {
+    minHeight: "100vh",
+    display: "flex",
+    background: "#f8fafc",
+    color: "#0f172a",
+    fontFamily:
+      "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif",
+  },
+
+  sidebar: {
+    width: "255px",
+    minHeight: "100vh",
+    background:
+      "linear-gradient(180deg, #0f172a 0%, #111827 100%)",
+    color: "#ffffff",
+    display: "flex",
+    flexDirection: "column",
+    padding: "24px 16px",
+    boxSizing: "border-box",
+    position: "sticky",
+    top: 0,
+  },
+
+  logoArea: {
+    display: "flex",
+    alignItems: "center",
+    gap: "12px",
+    padding: "4px 10px 30px",
+  },
+
+  logoIcon: {
+    width: "40px",
+    height: "40px",
+    borderRadius: "12px",
+    background:
+      "linear-gradient(135deg, #6366f1, #8b5cf6)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: "22px",
+    boxShadow:
+      "0 8px 20px rgba(99, 102, 241, 0.35)",
+  },
+
+  logoTitle: {
+    fontSize: "17px",
+    fontWeight: "700",
+  },
+
+  logoSubtitle: {
+    fontSize: "10px",
+    letterSpacing: "2px",
+    color: "#94a3b8",
+    marginTop: "2px",
+  },
+
+  sidebarLabel: {
+    color: "#64748b",
+    fontSize: "10px",
+    fontWeight: "700",
+    letterSpacing: "1.5px",
+    padding: "0 12px 10px",
+  },
+
+  nav: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "6px",
+  },
+
+  navItem: {
+    position: "relative",
+    display: "flex",
+    alignItems: "center",
+    gap: "13px",
+    padding: "13px 14px",
+    borderRadius: "10px",
+    color: "#cbd5e1",
+    textDecoration: "none",
+    fontSize: "14px",
+    fontWeight: "500",
+    transition: "all 0.2s",
+  },
+
+  activeNav: {
+    background:
+      "linear-gradient(90deg, rgba(99,102,241,0.22), rgba(139,92,246,0.12))",
+    color: "#ffffff",
+  },
+
+  activeDot: {
+    width: "6px",
+    height: "6px",
+    borderRadius: "50%",
+    background: "#818cf8",
+    marginLeft: "auto",
+    boxShadow: "0 0 8px #818cf8",
+  },
+
+  sidebarBottom: {
+    marginTop: "auto",
+  },
+
+  knowledgeCard: {
+    display: "flex",
+    gap: "10px",
+    padding: "14px",
+    borderRadius: "12px",
+    background: "rgba(255,255,255,0.05)",
+    border: "1px solid rgba(255,255,255,0.07)",
+  },
+
+  knowledgeIcon: {
+    fontSize: "18px",
+  },
+
+  knowledgeTitle: {
+    fontSize: "12px",
+    fontWeight: "600",
+  },
+
+  knowledgeText: {
+    color: "#94a3b8",
+    fontSize: "10px",
+    lineHeight: "1.5",
+    marginTop: "3px",
+  },
+
+  main: {
+    flex: 1,
+    minWidth: 0,
+  },
+
+  topbar: {
+    minHeight: "88px",
+    background: "#ffffff",
+    borderBottom: "1px solid #e2e8f0",
+    padding: "18px 40px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    boxSizing: "border-box",
+  },
+
+  breadcrumb: {
+    color: "#94a3b8",
+    fontSize: "12px",
+    marginBottom: "5px",
+  },
+
+  pageTitle: {
+    margin: 0,
+    fontSize: "23px",
+    fontWeight: "700",
+    color: "#0f172a",
+  },
+
+  status: {
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+    padding: "8px 13px",
+    borderRadius: "20px",
+    background: "#f0fdf4",
+    color: "#15803d",
+    fontSize: "12px",
+    fontWeight: "600",
+  },
+
+  statusDot: {
+    width: "7px",
+    height: "7px",
+    background: "#22c55e",
+    borderRadius: "50%",
+    boxShadow: "0 0 8px rgba(34,197,94,0.5)",
+  },
+
+  content: {
+    width: "100%",
+    maxWidth: "1050px",
+    margin: "0 auto",
+    padding: "42px 30px 70px",
+    boxSizing: "border-box",
+  },
+
+  hero: {
+    display: "flex",
+    alignItems: "center",
+    gap: "16px",
+    marginBottom: "28px",
+  },
+
+  heroIcon: {
+    width: "52px",
+    height: "52px",
+    borderRadius: "16px",
+    background:
+      "linear-gradient(135deg, #6366f1, #8b5cf6)",
+    color: "#ffffff",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: "25px",
+    boxShadow:
+      "0 10px 25px rgba(99,102,241,0.25)",
+  },
+
+  heroTitle: {
+    margin: 0,
+    fontSize: "27px",
+    fontWeight: "750",
+    color: "#111827",
+  },
+
+  heroText: {
+    margin: "6px 0 0",
+    color: "#64748b",
+    fontSize: "14px",
+  },
+
+  inputCard: {
+    background: "#ffffff",
+    border: "1px solid #e2e8f0",
+    borderRadius: "18px",
+    padding: "20px",
+    boxShadow:
+      "0 10px 35px rgba(15,23,42,0.06)",
+    marginBottom: "20px",
+  },
+
+  inputHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: "10px",
+  },
+
+  inputLabel: {
+    fontSize: "11px",
+    fontWeight: "700",
+    letterSpacing: "1px",
+    color: "#6366f1",
+  },
+
+  shortcut: {
+    color: "#94a3b8",
+    fontSize: "11px",
+  },
+
+  textarea: {
+    width: "100%",
+    minHeight: "125px",
+    boxSizing: "border-box",
+    border: "1px solid #e2e8f0",
+    borderRadius: "12px",
+    padding: "15px",
+    fontSize: "15px",
+    color: "#1e293b",
+    background: "#f8fafc",
+    resize: "vertical",
+    outline: "none",
+    fontFamily: "inherit",
+  },
+
+  inputFooter: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: "13px",
+  },
+
+  hint: {
+    color: "#94a3b8",
+    fontSize: "11px",
+  },
+
+  askButton: {
+    border: "none",
+    borderRadius: "10px",
+    padding: "12px 20px",
+    background:
+      "linear-gradient(135deg, #6366f1, #7c3aed)",
+    color: "#ffffff",
+    fontSize: "14px",
+    fontWeight: "650",
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    gap: "10px",
+    boxShadow:
+      "0 7px 18px rgba(99,102,241,0.25)",
+  },
+
+  sendIcon: {
+    fontSize: "17px",
+  },
+
+  spinner: {
+    width: "13px",
+    height: "13px",
+    border: "2px solid rgba(255,255,255,0.4)",
+    borderTop: "2px solid #ffffff",
+    borderRadius: "50%",
+    display: "inline-block",
+  },
+
+  error: {
+    display: "flex",
+    alignItems: "center",
+    gap: "10px",
+    background: "#fef2f2",
+    border: "1px solid #fecaca",
+    color: "#b91c1c",
+    padding: "14px 16px",
+    borderRadius: "12px",
+    marginBottom: "20px",
+    fontSize: "13px",
+  },
+
+  errorIcon: {
+    width: "22px",
+    height: "22px",
+    borderRadius: "50%",
+    background: "#ef4444",
+    color: "#ffffff",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontWeight: "700",
+  },
+
+  answerCard: {
+    background: "#ffffff",
+    border: "1px solid #e2e8f0",
+    borderRadius: "18px",
+    padding: "24px",
+    boxShadow:
+      "0 10px 35px rgba(15,23,42,0.05)",
+    marginBottom: "20px",
+  },
+
+  aiHeader: {
+    display: "flex",
+    alignItems: "center",
+    gap: "12px",
+    marginBottom: "20px",
+  },
+
+  aiAvatar: {
+    width: "42px",
+    height: "42px",
+    borderRadius: "12px",
+    background:
+      "linear-gradient(135deg, #6366f1, #8b5cf6)",
+    color: "#ffffff",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: "20px",
+  },
+
+  aiName: {
+    fontSize: "14px",
+    fontWeight: "700",
+    color: "#111827",
+  },
+
+  aiStatus: {
+    fontSize: "11px",
+    color: "#94a3b8",
+    marginTop: "3px",
+  },
+
+  answerText: {
+    color: "#334155",
+    fontSize: "15px",
+    lineHeight: "1.8",
+    whiteSpace: "pre-wrap",
+    paddingLeft: "54px",
+  },
+
+  chartCard: {
+    background: "#ffffff",
+    border: "1px solid #e2e8f0",
+    borderRadius: "18px",
+    padding: "24px",
+    boxShadow:
+      "0 10px 35px rgba(15,23,42,0.05)",
+  },
+
+  chartHeader: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: "5px",
+  },
+
+  chartBadge: {
+    color: "#6366f1",
+    fontSize: "10px",
+    fontWeight: "750",
+    letterSpacing: "1.5px",
+  },
+
+  chartTitle: {
+    margin: "6px 0 0",
+    fontSize: "19px",
+    color: "#111827",
+  },
+
+  chartIcon: {
+    fontSize: "25px",
+  },
+
+  chartArea: {
+    width: "100%",
+    height: "430px",
+    marginTop: "15px",
+  },
+};
 
 export default Chat;

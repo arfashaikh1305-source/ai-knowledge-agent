@@ -3,6 +3,7 @@ from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from app.database.session import get_db
+from app.database.models import User
 from app.documents.models import Document
 from app.documents.service import (
     save_document,
@@ -18,6 +19,10 @@ router = APIRouter(
 )
 
 
+# =========================================================
+# UPLOAD DOCUMENT
+# =========================================================
+
 @router.post("/upload")
 def upload_document(
     file: UploadFile = File(...),
@@ -26,9 +31,9 @@ def upload_document(
 ):
     try:
         document = save_document(
-            file,
-            db,
-            user_id,
+            file=file,
+            db=db,
+            user_id=user_id,
         )
 
         return {
@@ -44,29 +49,24 @@ def upload_document(
         )
 
 
+# =========================================================
+# LIST DOCUMENTS
+# =========================================================
+
 @router.get("/")
 def list_documents(
     db: Session = Depends(get_db),
     user_id: int = Depends(get_current_user_id),
 ):
     return get_all_documents(
-        db,
-        user_id,
+        db=db,
+        user_id=user_id,
     )
 
 
-@router.delete("/{document_id}")
-def remove_document(
-    document_id: int,
-    db: Session = Depends(get_db),
-    user_id: int = Depends(get_current_user_id),
-):
-    return delete_document(
-        document_id,
-        db,
-        user_id,
-    )
-
+# =========================================================
+# DOCUMENT STATS
+# =========================================================
 
 @router.get("/stats")
 def document_stats(
@@ -83,6 +83,10 @@ def document_stats(
         "total_documents": total_documents
     }
 
+
+# =========================================================
+# DOWNLOAD DOCUMENT
+# =========================================================
 
 @router.get("/download/{document_id}")
 def download_document(
@@ -109,4 +113,21 @@ def download_document(
         path=document.file_path,
         filename=document.filename,
         media_type="application/octet-stream",
+    )
+
+
+# =========================================================
+# DELETE DOCUMENT
+# =========================================================
+
+@router.delete("/{document_id}")
+def remove_document(
+    document_id: int,
+    db: Session = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
+):
+    return delete_document(
+        document_id=document_id,
+        db=db,
+        user_id=user_id,
     )

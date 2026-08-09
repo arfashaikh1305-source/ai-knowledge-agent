@@ -1,14 +1,12 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
-
-from app.database.session import get_db
-from app.documents.models import Document
 
 from app.chat.schemas import ChatRequest, ChatResponse
 from app.chat.service import ask_ai
-from app.chat.summary_service import generate_summary
-
 from app.auth.security import get_current_user_id
+
+from app.database.session import get_db
+from app.database.models import ChatHistory
 
 
 router = APIRouter(
@@ -17,46 +15,95 @@ router = APIRouter(
 )
 
 
+# =========================================================
+# AI CHAT
+# =========================================================
+
 @router.post("/", response_model=ChatResponse)
 def chat(
     request: ChatRequest,
     user_id: int = Depends(get_current_user_id),
+    db: Session = Depends(get_db),
 ):
-    answer = ask_ai(
-        request.question,
-        user_id,
+    result = ask_ai(
+        question=request.question,
+        user_id=user_id,
     )
 
-    return ChatResponse(
+    # Convert answer to text safely
+    answer = result.get(
+        "answer",
+        "No answer generated.",
+    )
+
+    # Save question + answer
+    history = ChatHistory(
+        user_id=user_id,
+        question=request.question,
         answer=answer,
     )
 
+    db.add(history)
+    db.commit()
+    db.refresh(history)
 
-@router.get("/summary/{document_id}")
-def document_summary(
-    document_id: int,
-    db: Session = Depends(get_db),
+    return result
+
+
+# =========================================================
+# GET CHAT HISTORY
+# =========================================================
+
+@router.get("/history")
+def get_chat_history(
     user_id: int = Depends(get_current_user_id),
+    db: Session = Depends(get_db),
 ):
-    document = (
-        db.query(Document)
+    history = (
+        db.query(ChatHistory)
+        .filter(ChatHistory.user_id == user_id)
+        .order_by(ChatHistory.created_at.desc())
+        .all()
+    )
+
+    return [
+        {
+            "id": item.id,
+            "question": item.question,
+            "answer": item.answer,
+            "created_at": item.created_at.isoformat(),
+        }
+        for item in history
+    ]
+
+
+# =========================================================
+# DELETE CHAT HISTORY
+# =========================================================
+
+@router.delete("/history/{history_id}")
+def delete_chat_history(
+    history_id: int,
+    user_id: int = Depends(get_current_user_id),
+    db: Session = Depends(get_db),
+):
+    history = (
+        db.query(ChatHistory)
         .filter(
-            Document.id == document_id,
-            Document.user_id == user_id,
+            ChatHistory.id == history_id,
+            ChatHistory.user_id == user_id,
         )
         .first()
     )
 
-    if not document:
-        raise HTTPException(
-            status_code=404,
-            detail="Document not found",
-        )
+    if not history:
+        return {
+            "message": "History item not found."
+        }
 
-    summary = generate_summary(document)
+    db.delete(history)
+    db.commit()
 
     return {
-        "document_id": document.id,
-        "filename": document.filename,
-        "summary": summary,
+        "message": "History deleted successfully."
     }

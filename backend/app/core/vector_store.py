@@ -4,6 +4,7 @@ from qdrant_client.models import (
     FieldCondition,
     Filter,
     MatchValue,
+    PayloadSchemaType,
     PointStruct,
     VectorParams,
 )
@@ -24,6 +25,7 @@ client = QdrantClient(
 def create_collection():
     """
     Create the Qdrant collection if it does not already exist.
+    Then create the payload indexes required for filtering.
     """
 
     try:
@@ -35,6 +37,7 @@ def create_collection():
         ]
 
         if COLLECTION_NAME not in collection_names:
+
             client.create_collection(
                 collection_name=COLLECTION_NAME,
                 vectors_config=VectorParams(
@@ -48,9 +51,42 @@ def create_collection():
         else:
             print("Qdrant collection already exists.")
 
+        # Always make sure indexes exist
+        create_payload_indexes()
+
     except Exception as e:
         print("Qdrant connection error:", e)
         raise
+
+
+def create_payload_indexes():
+    """
+    Create indexes for user_id and document_id.
+    """
+
+    try:
+        client.create_payload_index(
+            collection_name=COLLECTION_NAME,
+            field_name="user_id",
+            field_schema=PayloadSchemaType.INTEGER,
+        )
+
+        print("Qdrant user_id index ready.")
+
+    except Exception as e:
+        print("user_id index:", e)
+
+    try:
+        client.create_payload_index(
+            collection_name=COLLECTION_NAME,
+            field_name="document_id",
+            field_schema=PayloadSchemaType.INTEGER,
+        )
+
+        print("Qdrant document_id index ready.")
+
+    except Exception as e:
+        print("document_id index:", e)
 
 
 def store_embedding(
@@ -79,16 +115,18 @@ def store_embedding(
             f"Expected {VECTOR_SIZE}, got {len(embedding)}."
         )
 
-    point_id = (int(document_id) * 1_000_000) + int(chunk_id)
+    point_id = (
+        int(document_id) * 1_000_000
+    ) + int(chunk_id)
 
     point = PointStruct(
         id=point_id,
         vector=embedding,
         payload={
             "text": text,
-            "document_id": document_id,
-            "user_id": user_id,
-            "chunk_id": chunk_id,
+            "document_id": int(document_id),
+            "user_id": int(user_id),
+            "chunk_id": int(chunk_id),
         },
     )
 
@@ -115,11 +153,15 @@ def delete_document_embeddings(
             must=[
                 FieldCondition(
                     key="document_id",
-                    match=MatchValue(value=document_id),
+                    match=MatchValue(
+                        value=int(document_id),
+                    ),
                 ),
                 FieldCondition(
                     key="user_id",
-                    match=MatchValue(value=user_id),
+                    match=MatchValue(
+                        value=int(user_id),
+                    ),
                 ),
             ]
         ),

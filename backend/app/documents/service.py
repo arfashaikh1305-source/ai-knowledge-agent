@@ -57,6 +57,15 @@ def save_document(
     # Extract text
     extracted_text = extract_text(file_path)
 
+    if not extracted_text or not extracted_text.strip():
+        # Remove file if no text could be extracted
+        if os.path.exists(file_path):
+            os.remove(file_path)
+
+        raise ValueError(
+            "No readable text could be extracted from this document."
+        )
+
     # Save document in PostgreSQL
     document = Document(
         user_id=user_id,
@@ -79,6 +88,7 @@ def save_document(
 
     # Generate Gemini embeddings and store in Qdrant
     for index, chunk in enumerate(chunks):
+
         print(
             f"Processing chunk "
             f"{index + 1}/{len(chunks)}"
@@ -103,6 +113,14 @@ def save_document(
                 f"Qdrant/embedding error for chunk "
                 f"{index}: {e}"
             )
+
+            # Roll back database record if embedding fails
+            db.delete(document)
+            db.commit()
+
+            if os.path.exists(file_path):
+                os.remove(file_path)
+
             raise
 
     print("All embeddings stored successfully!")
@@ -149,16 +167,17 @@ def delete_document(
             "message": "Document not found"
         }
 
-    if os.path.exists(document.file_path):
-        os.remove(document.file_path)
-
-    # Delete the document's embeddings from Qdrant
+    # Delete embeddings from Qdrant
     delete_document_embeddings(
         document_id=document.id,
         user_id=user_id,
     )
 
-    # Delete the document from PostgreSQL
+    # Delete physical file
+    if os.path.exists(document.file_path):
+        os.remove(document.file_path)
+
+    # Delete PostgreSQL record
     db.delete(document)
     db.commit()
 

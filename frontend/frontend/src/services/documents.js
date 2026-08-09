@@ -1,13 +1,12 @@
 import api from "./api";
 import { getToken } from "./auth";
 
-const authHeaders = () => ({
+const getAuthHeaders = () => ({
   Authorization: `Bearer ${getToken()}`,
 });
 
 export const uploadDocument = async (file) => {
   const formData = new FormData();
-
   formData.append("file", file);
 
   const response = await api.post(
@@ -15,7 +14,7 @@ export const uploadDocument = async (file) => {
     formData,
     {
       headers: {
-        ...authHeaders(),
+        ...getAuthHeaders(),
         "Content-Type": "multipart/form-data",
       },
     }
@@ -28,7 +27,7 @@ export const getDocuments = async () => {
   const response = await api.get(
     "/documents/",
     {
-      headers: authHeaders(),
+      headers: getAuthHeaders(),
     }
   );
 
@@ -39,7 +38,7 @@ export const deleteDocument = async (documentId) => {
   const response = await api.delete(
     `/documents/${documentId}`,
     {
-      headers: authHeaders(),
+      headers: getAuthHeaders(),
     }
   );
 

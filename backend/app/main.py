@@ -20,6 +20,10 @@ from app.chat.router import router as chat_router
 from app.core.vector_store import create_collection
 
 
+# =========================================================
+# LOGGING
+# =========================================================
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
@@ -28,14 +32,25 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-app = FastAPI(title=settings.APP_NAME)
+# =========================================================
+# FASTAPI APP
+# =========================================================
+
+app = FastAPI(
+    title=settings.APP_NAME
+)
 
 
-# CORS configuration
+# =========================================================
+# CORS
+# =========================================================
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
+        "http://127.0.0.1:5173",
         "http://localhost:5173",
+        "http://127.0.0.1:5174",
         "http://localhost:5174",
         "https://ai-knowledge-agent-frontend.onrender.com",
     ],
@@ -45,19 +60,32 @@ app.add_middleware(
 )
 
 
-# Create PostgreSQL tables
+# =========================================================
+# CREATE DATABASE TABLES
+# =========================================================
+
 Base.metadata.create_all(bind=engine)
 
 
-# Create Qdrant collection
+# =========================================================
+# CREATE / VERIFY QDRANT COLLECTION + INDEXES
+# =========================================================
+
 create_collection()
 
 
-# Register routers
+# =========================================================
+# REGISTER ROUTERS
+# =========================================================
+
 app.include_router(auth_router)
 app.include_router(document_router)
 app.include_router(chat_router)
 
+
+# =========================================================
+# ROOT
+# =========================================================
 
 @app.get("/")
 def root():
@@ -65,6 +93,10 @@ def root():
         "message": f"Welcome to {settings.APP_NAME}"
     }
 
+
+# =========================================================
+# HEALTH CHECK
+# =========================================================
 
 @app.get("/health")
 def health():
